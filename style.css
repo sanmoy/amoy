@@ -96,11 +96,13 @@ a {
   line-height: 1.4;
 }
 
-.poem {
+.poem,
+.song {
   margin: 12px 0 8px 0;
 }
 
-.poem p {
+.poem p,
+.song p {
   margin: 0 0 28px 0;
 }
 

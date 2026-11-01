@@ -51,7 +51,10 @@ figures/<name>.html     Generated. Large PNG, English name, pre-shaped Bengali n
 figures/img/*.png       The images the pages show. 600Ã—600, black and white only.
 figures/src/*.svg       Vector sources. Not linked from pages. Hand, eye, and apple are traced from flash cards.
 figures/render.py       Regenerates SVGs, PNGs, and src/figures. Not used at serve time.
-songs/index.html        Song list. Empty until songs are added. English for now.
+src/songs/              Unicode song sources and the song list.
+src/catalog.tsv         Owner's list: title as shown, type, author, status, sources.
+songs/index.html        Generated song list. Pre-shaped Bengali titles.
+songs/<slug>.html       Generated song. Pre-shaped words. Unicode stays in src/.
 fonts/AmoyBengali.ttf   Site font. Pre-shaped clusters, subset, no hinting.
 fonts/AmoyBengali.woff  Same font for browsers that understand format().
 fonts/NotoSansBengali-* Unmodified Noto. Shaping source only. Pages do not load it.
@@ -115,7 +118,7 @@ To add a figure without the script, draw `figures/src/<slug>.svg`, export a 600Ã
 
 ## How to add a song
 
-`songs/index.html` is the list. It is English and empty until songs arrive, so it is not under `src/` and it does not use the Bengali font. The home-page link is the English word Songs.
+`songs/index.html` is the list, generated from `src/songs/index.html`. The home-page link stays the English word Songs. `src/catalog.tsv` is the owner's list, including texts that are not published.
 
 When a song is added:
 
