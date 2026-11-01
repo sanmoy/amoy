@@ -11,7 +11,7 @@ This site is for Amoy, a 15-month-old, and is meant to be read on a very old Ama
 - Plain HTML and CSS. JavaScript only if it is truly needed, and then only plain ES3: no `let` or `const`, no arrow functions, no template strings, no `fetch`, no modules. Pages must work fully with JavaScript disabled. The current site has no JavaScript.
 - No frameworks, no build step, no npm, no bundler.
 - Do not rely on flexbox, grid, or CSS variables. Stick to CSS that old WebKit understands: blocks, margins, padding, borders, font sizes.
-- E-paper: black (`#000000`) on white (`#ffffff`), high contrast, large text, big tap targets. No animation, no video, no hover-dependent UI, as few images as possible. Pages should load quickly.
+- E-paper: black (`#000000`) on white (`#ffffff`), high contrast, large text, big tap targets. No animation, no video, no hover-dependent UI. Keep poem pages free of images. Figure pages are the exception: one black-and-white PNG each, as described below. Pages should load quickly.
 - Bengali must be real Unicode text, not pictures, unless the Kindle fallback described at the bottom of this file is being added on purpose.
 - Every HTML file starts with both of these, in the first kilobyte:
 
@@ -44,7 +44,11 @@ style.css               Shared stylesheet. Linked relatively from every page.
 .nojekyll               Disables Jekyll.
 poems/index.html        One flat list of poems. English and Bengali titles together. No subsections.
 poems/khai-khai.html    Sukumar Ray, খাই খাই.
-figures/index.html      Placeholder. Figures are coming soon.
+figures/index.html      Picture-book index. Two columns, big tap targets.
+figures/<name>.html     One figure: large PNG, English name, Bengali name, Previous and Next.
+figures/img/*.png       The images the pages show. 600×600, black and white only.
+figures/src/*.svg       Vector sources. Not linked from pages.
+figures/render.py       Regenerates the SVGs, PNGs, and figure HTML. Not used at serve time.
 fonts/                  Noto Sans Bengali Regular (OFL), TTF and WOFF, plus OFL.txt.
 AGENTS.md               This file.
 README.md               Short intro.
@@ -77,6 +81,20 @@ There is no bold face. Headings use a larger size and `font-weight: normal` so t
 7. Check the new page in a browser: conjuncts look joined, the back link returns to the list, and the stylesheet loads. Relative links only.
 
 Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on the page anyway. `poems/khai-khai.html` follows the line and stanza breaks on https://www.bangla-kobita.com/sukumarray/khai-khai/ (three stanzas, split where that page has a blank line).
+
+## How to add a figure
+
+Figures are solid black shapes on white, in the same style as a filled five-pointed star: one bold silhouette, no grey, no text inside the picture. Pages must point at the PNG. Old Kindle WebKit is unreliable with SVG.
+
+The picture-book order is the `FIGURES` list in `figures/render.py`. Previous and Next wrap around that list.
+
+1. Add a draw function in `figures/render.py` that paints only pure black `(0, 0, 0)` and pure white `(255, 255, 255)` through `Drawer` (`polygon`, `ellipse`, `rect`). Do not rotate or resize a bitmap; Pillow's rotate adds grey pixels. Keep the shape inside the 600×600 canvas with a margin, and make it something a toddler recognises at a glance.
+2. Add one tuple to `FIGURES`: `("slug", "English name", "বাংলা নাম")`. The slug is ASCII. Put `class="bn"` and `lang="bn"` only on the Bengali name. The webfont has no Latin letters, so the English name must not use `class="bn"`.
+3. From the repo root run `python3 figures/render.py`. It needs Pillow. The script rewrites `figures/src/<slug>.svg`, `figures/img/<slug>.png`, `figures/<slug>.html`, and `figures/index.html`, and it refuses to save a PNG that contains any colour other than black and white. PNGs are an 8-bit palette of those two colours, not interlaced, with no alpha. 8-bit palette is safer for old decoders than 1-bit, and it is still free of grey.
+4. Do not link the SVG from HTML. The figure page uses `img/<slug>.png`. The index uses the same file, shown smaller.
+5. Check the new shape on its page, then Previous and Next, including the wrap from the last figure back to the first. Bengali should render with Noto Sans Bengali. Links stay relative.
+
+To add a figure without the script, draw `figures/src/<slug>.svg`, export a 600×600 PNG with every pixel forced to `#000000` or `#ffffff`, and copy `figures/star.html`. Then point the new page's Previous and Next at its neighbours, update those neighbours so the loop stays closed, and add a cell to the table in `figures/index.html`.
 
 ## How to add a top-level section
 
