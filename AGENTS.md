@@ -46,6 +46,8 @@ poems/index.html        One flat list of poems. English and Bengali titles toget
 poems/khai-khai.html    Sukumar Ray, খাই খাই.
 figures/index.html      Placeholder. Figures are coming soon.
 fonts/                  Noto Sans Bengali Regular (OFL), TTF and WOFF, plus OFL.txt.
+debug/                  Kindle shaping tests. Not linked from the home page. See below.
+tools/                  preshape.py and build_debug.py. Not used by the live pages.
 AGENTS.md               This file.
 README.md               Short intro.
 ```
@@ -86,14 +88,23 @@ Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on t
 4. On the home page, add one `<li>` to the `ul.menu` in `index.html`, linking to `songs/index.html` with a relative URL.
 5. Reuse `style.css`. Do not start a second stylesheet unless the shared one cannot express the page. Keep new rules on the same blacklist: no flex, grid, variables, animation, or hover-only behavior.
 
-## Kindle compatibility (not yet tested on the device)
+## Kindle compatibility
 
-The user will open the site on the Kindle and report back. These are the likely gaps:
+A Kindle Touch (4th generation) has loaded these pages. `@font-face` works: Noto Sans Bengali glyphs appear. Shaping does not. Pre-base vowels sit after the consonant, o-kar is split, and conjuncts keep a visible hasant. Reph and ya-phala are wrong. The same pages shape correctly on a current phone or desktop browser. The font is not the limit. The browser has no Indic shaper. `debug/` is the comparison bench for that. See Debug pages.
 
-- `@font-face` may be ignored by the oldest experimental browser. If it is, Bengali will not draw, because the device has no Bengali system font. TTF is included because it is the format those browsers are most likely to accept. WOFF covers somewhat newer WebKit.
-- Even when the font loads, Bengali conjuncts, reph, and ya-phala need OpenType shaping (`beng` / `bng2`). Old WebKit often has no Indic shaper. Text can show as separate consonants with a visible hasant, or with matras in the wrong place. The font files are not the limiting factor; the browser engine is.
+- TTF is what this device accepted. Keep a bare TTF `src` ahead of any `format()` hint. Do not switch to WOFF2 only.
 - The viewport meta helps phones. If the Kindle draws the type tiny or huge, try removing `<meta name="viewport" content="width=device-width">` before changing font sizes.
-- JavaScript, flexbox, grid, and CSS variables are not used, so a browser that ignores them still gets the full page.
+- Poem pages use no JavaScript. The debug index has one ES3 script that prints `navigator.userAgent`. That page still works with JavaScript off. Flexbox, grid, and CSS variables are not used.
+
+## Debug pages
+
+`debug/index.html` is not linked from the home page, the poems, or the figures. It is published with the rest of the site, so the Kindle can open https://nascentsoftware.com/amoy/debug/ directly. The same rules apply there: both charset metas, relative links, no flex, grid, or CSS variables, no CDN, TTF ahead of any `format()` hint, English in `sans-serif`.
+
+Every numbered page shows the same sample: the first stanza of `poems/khai-khai.html`, then the line `কি কে কো কৌ ক্ষ ত্র স্ত ন্দ র্ক ক্য ঙ্গ শ্চ ঁ ং ৎ`. The English title is how a phone photo of the device identifies the test.
+
+Tests 1–4 are Unicode text in Noto, Lohit Bengali, Hind Siliguri, and a static Baloo Da 2. They still need a shaper. Tests 5 and 6 are pre-shaped: `tools/preshape.py` runs HarfBuzz on Noto Sans Bengali and writes a TTF whose Private Use Area cmap points at composite glyphs with those positions baked in. GSUB and GPOS are removed. Test 5 is one character per syllable. Test 6 is one character per glyph. Test 7 is a black-and-white PNG of the sample, drawn with HarfBuzz, for comparison.
+
+Licenses for the extra fonts, and the OFL notice for the modified Noto files, are in `debug/fonts/README.txt`. Do not point the poem pages at these fonts. Rebuild with `python3 tools/build_debug.py` after changing the sample or the script. Dependencies are listed in `tools/requirements.txt`. The pages themselves stay static.
 
 ## Future option: pre-rendered poem images
 

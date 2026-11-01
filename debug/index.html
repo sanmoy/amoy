@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<meta name="viewport" content="width=device-width">
+<meta name="color-scheme" content="light">
+<title>Debug</title>
+<link rel="stylesheet" href="debug.css">
+</head>
+<body>
+<h1>Debug</h1>
+<p>Shaping tests for the Kindle browser. These pages are not part of the book. Open a test and photograph the screen. The English title at the top names the test.</p>
+<p>Every test shows the same words: the first stanza of Khai Khai, then one line of hard cases.</p>
+<ul class="menu">
+<li><a href="01-noto.html">Test 1. Noto Sans Bengali</a></li>
+<li><a href="02-lohit.html">Test 2. Lohit Bengali</a></li>
+<li><a href="03-hind-siliguri.html">Test 3. Hind Siliguri</a></li>
+<li><a href="04-baloo-da-2.html">Test 4. Baloo Da 2</a></li>
+<li><a href="05-preshape-cluster.html">Test 5. Pre-shaped clusters</a></li>
+<li><a href="06-preshape-glyph.html">Test 6. Pre-shaped glyphs</a></li>
+<li><a href="07-image.html">Test 7. Picture</a></li>
+</ul>
+<h2>This browser</h2>
+<p>The line below is filled in by JavaScript when the browser runs it. The test links work with JavaScript off.</p>
+<p id="device-ua">User agent: (not available, JavaScript is off)</p>
+<script type="text/javascript">
+var el = document.getElementById("device-ua");
+if (el && navigator && navigator.userAgent) {
+  var text = "User agent: " + navigator.userAgent;
+  while (el.firstChild) {
+    el.removeChild(el.firstChild);
+  }
+  el.appendChild(document.createTextNode(text));
+}
+</script>
+<noscript><p>JavaScript is off. The user agent stays hidden, and the tests above still open.</p></noscript>
+</body>
+</html>
