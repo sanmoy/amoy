@@ -55,3 +55,19 @@ Dependencies are in `tools/requirements.txt` (`uharfbuzz`, `fonttools`, `pillow`
 Commit the sources, the served pages, and both `fonts/AmoyBengali` files in one change. English-only pages do not need `src/` or a rebuild.
 
 `class="bn"` selects `font-family: "Amoy Bengali", sans-serif`. Do not put that class on English text. The font has no Latin letters A–Z.
+
+## Reading the Gitobitan PDF
+
+The 2012 Gitobitan PDF (Somendra Bhattacharjee) is Bangtex Type 3. There is no ToUnicode map, and the `.tex` sources are not public. Each byte is one Bangtex character. The numbers match `bangjuk.mf`, `banghalf.mf`, and `bangfala.mf`.
+
+The base letters are not swapped. Cropped from that font, `r` is র (a diagonal with a dot underneath), `b` is ব (the same stroke with no dot), and `y` is য় (a bent stroke with a dot). Ra-phala is the separate code `R`.
+
+The mistakes come from how those letters are assembled into a syllable:
+
+- an i-kar is dropped, so নাহি becomes নাহ
+- an aa-kar is dropped or inserted, so আহ্বান becomes অহ্বান and আমরা becomes আমারা
+- ন and ণ, and ু and ূ, and ি and ী, get exchanged inside a conjunct
+- a ba-phala disappears, so অশ্বত্থ becomes অশত্থ
+- য় is read as র after the syllable is rebuilt, so চেয়ে becomes চেরে
+
+A one-letter difference that produces a non-word is a decoding error unless a 300 dpi crop of that glyph plainly shows it. Do not apply the decoder's text on its own. The crops for the review are under the artifacts `review/` folder.
