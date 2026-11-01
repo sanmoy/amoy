@@ -39,15 +39,19 @@ Pushing to `main` publishes the site. There is no build. What is in the repo roo
 ## Site structure
 
 ```
-index.html              Home. Title, then a list of sections.
+index.html              Home. Title, then a list of sections. English.
 style.css               Shared stylesheet. Linked relatively from every page.
 .nojekyll               Disables Jekyll.
-poems/index.html        One flat list of poems. English and Bengali titles together. No subsections.
-poems/khai-khai.html    Sukumar Ray, খাই খাই.
-figures/index.html      Placeholder. Figures are coming soon.
-fonts/                  Noto Sans Bengali Regular (OFL), TTF and WOFF, plus OFL.txt.
+src/poems/              Unicode sources. Edit these, not the served poem pages.
+poems/index.html        Generated list of poems. English and pre-shaped titles.
+poems/khai-khai.html    Generated. Sukumar Ray, খাই খাই, pre-shaped.
+figures/index.html      Placeholder. Figures are coming soon. English, not generated.
+fonts/AmoyBengali.ttf   Site font. Pre-shaped clusters, subset, no hinting.
+fonts/AmoyBengali.woff  Same font for browsers that understand format().
+fonts/NotoSansBengali-* Unmodified Noto. Shaping source and debug test 1 only.
+fonts/OFL.txt           SIL OFL for Noto and for Amoy Bengali, which is derived from it.
 debug/                  Kindle shaping tests. Not linked from the home page. See below.
-tools/                  preshape.py and build_debug.py. Not used by the live pages.
+tools/preshape.py       Builds Amoy Bengali and the served pages (--site).
 AGENTS.md               This file.
 README.md               Short intro.
 ```
@@ -58,27 +62,36 @@ The stylesheet path is `style.css` from the home page and `../style.css` from an
 
 ## Font
 
-Noto Sans Bengali Regular, version 2.001 (Copyright 2017 Google Inc.), SIL Open Font License 1.1. See `fonts/OFL.txt`. The files are the full font, not a per-poem subset: 679 glyphs, Unicode cmap for the Bengali block in use, and OpenType layout for both the `beng` and `bng2` scripts (`akhn`, `rphf`, `blwf`, `half`, `cjct`, `pres`, and the rest). Conjuncts are shaped from those tables. Do not subset unless a check with a real shaper (HarfBuzz or a current browser) shows the conjuncts in the poems still form. Dropping GSUB/GPOS, or keeping only the codepoints of one poem, will break later poems and can break conjuncts.
+The pages load `fonts/AmoyBengali.ttf` (and `.woff` where `format()` is understood). It is a modified Noto Sans Bengali Regular 2.001, SIL Open Font License 1.1. See `fonts/OFL.txt` and `fonts/README.txt`. The family name is `Amoy Bengali`. It is not named Noto. Noto is a trademark of Google Inc.
 
-`@font-face` lists a bare TTF `src` first, then a second `src` with WOFF and TTF `format()` hints. Keep that order. Old WebKit that does not understand `format()` uses the first declaration. Browsers that understand it use the second.
+`tools/preshape.py --site` shapes every Bengali string under `src/` with HarfBuzz, bakes each cluster into one composite glyph, and maps it to a Private Use Area character. GSUB and GPOS are removed. Unused Noto glyphs are dropped and hinting is removed, which is what keeps the file small. The served poem body is those Private Use characters in visual order, plus ordinary spaces so a line can still wrap. The Kindle draws them left to right and does not need a shaper. A current browser does the same, because a shaper has nothing to reorder.
 
-Fallback list, after the embedded family: `"Nirmala UI", "Vrinda", "Bangla MN", "Kohinoor Bangla", sans-serif`.
+Do not point poem pages at `fonts/NotoSansBengali-Regular.ttf`. That file stays in the repo as the shaping source and as debug test 1. It is about 200 KB and the Kindle would download it.
 
-English UI text uses `font-family: sans-serif` so the Kindle's own font draws it.
+`@font-face` lists a bare TTF `src` first, then a second `src` with WOFF and TTF `format()` hints. Keep that order. Old WebKit that does not understand `format()` uses the first declaration and downloads only the TTF. Browsers that understand it use the second and download the WOFF.
+
+`.bn` is `font-family: "Amoy Bengali", sans-serif`. System Bengali fonts do not contain these Private Use glyphs, so the old Nirmala UI / Vrinda fallback list does not belong here. English UI text uses `font-family: sans-serif`.
 
 There is no bold face. Headings use a larger size and `font-weight: normal` so the browser does not synthesize a fake bold, which distorts Bengali matras.
 
 ## How to add a poem
 
-1. Transcribe the poem yourself into Unicode. Preserve its line breaks and stanza breaks. Keep zero-width non-joiners (U+200C) where the source uses them to stop a conjunct, and keep danda (U+0964), em dashes, and the quotation marks the source uses. Do not "clean up" spelling.
-2. Create `poems/<ascii-slug>.html`. Copy the head from `poems/khai-khai.html` (both charset metas, viewport, relative `../style.css`). Set `<html lang="bn">` when the poem is Bengali, or `lang="en"` when it is English.
-3. Put a back link first: `<p class="nav"><a lang="en" href="index.html">Poems</a></p>`.
-4. Use an `h1` for the title. For Bengali, add `class="bn"` and `lang="bn"`. Credit the poet in a paragraph. For a Bengali name, use `class="bn"` and `lang="bn"`. A Latin-script credit next to it is useful when shaping fails.
-5. Put the poem in `<div class="poem bn" lang="bn">` (drop `bn` and `lang="bn"` for an English poem). One `<p>` per stanza. Inside the stanza, join lines with `<br>` and do not put spaces or newlines between the end of a line and the `<br>` that follows, or a space appears at the start of the next line. Separate stanzas by closing the `</p>` and opening another. Repeat the back link after the poem.
-6. Add one `<li>` to the single list in `poems/index.html`. Bengali titles need `class="bn"` and `lang="bn"` on the `<a>`. Do not add subsections.
-7. Check the new page in a browser: conjuncts look joined, the back link returns to the list, and the stylesheet loads. Relative links only.
+Bengali pages are Unicode in `src/` and pre-shaped in the served tree. Do not edit `poems/*.html` by hand. A new poem reassigns Private Use codes across the whole site, so the tool rewrites every generated page and both font files together. Commit the source, the generated pages, and `fonts/AmoyBengali.ttf` and `.woff` in one change.
 
-Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on the page anyway. `poems/khai-khai.html` follows the line and stanza breaks on https://www.bangla-kobita.com/sukumarray/khai-khai/ (three stanzas, split where that page has a blank line).
+1. Transcribe the poem yourself into Unicode. Preserve its line breaks and stanza breaks. Keep zero-width non-joiners (U+200C) where the source uses them to stop a conjunct, and keep danda (U+0964), em dashes, and the quotation marks the source uses. Do not "clean up" spelling.
+2. Create `src/poems/<ascii-slug>.html`. Copy the head from `src/poems/khai-khai.html` (both charset metas, viewport, relative `../style.css`). Set `<html lang="bn">` when the poem is Bengali, or `lang="en"` when it is English. The `<title>` stays Unicode on the served page. The tool does not pre-shape it, so a phone tab can show the name with a system font.
+3. Put a back link first: `<p class="nav"><a lang="en" href="index.html">Poems</a></p>`.
+4. Use an `h1` for the title. For Bengali, add `class="bn"` and `lang="bn"`. Credit the poet in a paragraph. For a Bengali name, use `class="bn"` and `lang="bn"`. A Latin-script credit next to it is useful on a device that never loads the font.
+5. Put the poem in `<div class="poem bn" lang="bn">` (drop `bn` and `lang="bn"` for an English poem). One `<p>` per stanza. Inside the stanza, join lines with `<br>` and do not put spaces or newlines between the end of a line and the `<br>` that follows, or a space appears at the start of the next line. Separate stanzas by closing the `</p>` and opening another. Repeat the back link after the poem.
+6. Add one `<li>` to the single list in `src/poems/index.html`. Bengali titles need `class="bn"` and `lang="bn"` on the `<a>`. Do not add subsections.
+7. Run `python3 tools/preshape.py --site`. Dependencies are in `tools/requirements.txt`. The command reads `src/`, writes `fonts/AmoyBengali.ttf` and `.woff`, and writes the served pages. It checks that FreeType, with no shaper, matches HarfBuzz on the Unicode source.
+8. Check the new page in a browser: conjuncts look joined, the back link returns to the list, and the stylesheet loads. Relative links only. The body will look like boxes if you open the file without the font.
+
+An English poem can be a normal page under `poems/` and does not need `src/` or a font rebuild.
+
+Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on the page anyway. `src/poems/khai-khai.html` follows the line and stanza breaks on https://www.bangla-kobita.com/sukumarray/khai-khai/ (three stanzas, split where that page has a blank line).
+
+The served HTML does not carry a second Unicode copy of the poem. That copy would be downloaded by the Kindle. The Unicode text lives in `src/`.
 
 ## How to add a top-level section
 
@@ -90,9 +103,9 @@ Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on t
 
 ## Kindle compatibility
 
-A Kindle Touch (4th generation) has loaded these pages. `@font-face` works: Noto Sans Bengali glyphs appear. Shaping does not. Pre-base vowels sit after the consonant, o-kar is split, and conjuncts keep a visible hasant. Reph and ya-phala are wrong. The same pages shape correctly on a current phone or desktop browser. The font is not the limit. The browser has no Indic shaper. `debug/` is the comparison bench for that. See Debug pages.
+A Kindle Touch (4th generation) loads `@font-face` TTF and does not shape Bengali. Unicode text shows pre-base vowels after the consonant, a split o-kar, a visible hasant, and wrong reph and ya-phala. The same Unicode shapes correctly on a current phone. `debug/` is the comparison that showed this. Tests 5 and 6, pre-shaped Private Use text, matched the HarfBuzz picture. The live pages use test 5 (one character per cluster).
 
-- TTF is what this device accepted. Keep a bare TTF `src` ahead of any `format()` hint. Do not switch to WOFF2 only.
+- TTF is what this device accepts. Keep a bare TTF `src` ahead of any `format()` hint. Do not switch to WOFF2 only.
 - The viewport meta helps phones. If the Kindle draws the type tiny or huge, try removing `<meta name="viewport" content="width=device-width">` before changing font sizes.
 - Poem pages use no JavaScript. The debug index has one ES3 script that prints `navigator.userAgent`. That page still works with JavaScript off. Flexbox, grid, and CSS variables are not used.
 
@@ -102,12 +115,10 @@ A Kindle Touch (4th generation) has loaded these pages. `@font-face` works: Noto
 
 Every numbered page shows the same sample: the first stanza of `poems/khai-khai.html`, then the line `কি কে কো কৌ ক্ষ ত্র স্ত ন্দ র্ক ক্য ঙ্গ শ্চ ঁ ং ৎ`. The English title is how a phone photo of the device identifies the test.
 
-Tests 1–4 are Unicode text in Noto, Lohit Bengali, Hind Siliguri, and a static Baloo Da 2. They still need a shaper. Tests 5 and 6 are pre-shaped: `tools/preshape.py` runs HarfBuzz on Noto Sans Bengali and writes a TTF whose Private Use Area cmap points at composite glyphs with those positions baked in. GSUB and GPOS are removed. Test 5 is one character per syllable. Test 6 is one character per glyph. Test 7 is a black-and-white PNG of the sample, drawn with HarfBuzz, for comparison.
+Tests 1–4 are Unicode text in Noto, Lohit Bengali, Hind Siliguri, and a static Baloo Da 2. They still need a shaper. On the Kindle they fail the same way the old poem page did. Tests 5 and 6 are pre-shaped Private Use text. Both matched test 7, the HarfBuzz picture. The live site ships test 5 as `fonts/AmoyBengali`, subset to the clusters the pages use. The debug copies of the fonts are the full unsubsetted files from that test, so they stay large on purpose.
 
 Licenses for the extra fonts, and the OFL notice for the modified Noto files, are in `debug/fonts/README.txt`. Do not point the poem pages at these fonts. Rebuild with `python3 tools/build_debug.py` after changing the sample or the script. Dependencies are listed in `tools/requirements.txt`. The pages themselves stay static.
 
-## Future option: pre-rendered poem images
+## Pictures of poems
 
-Do not build this until a Kindle test shows that live Bengali text is wrong.
-
-If shaping fails on the device, add an alternate view that is a picture of the poem instead of relying on the browser to shape it. Render that picture on a current machine with HarfBuzz and this same Noto Sans Bengali file, black on white, large type, no antialiasing tricks that turn gray. One PNG per stanza is easier to read on a small screen than one tall image. Link it from the poem page as a plain relative image or a "picture version" link. Keep the Unicode text page as the primary version so the poem stays searchable and editable. Images are a fallback, not a replacement, and they cost more bytes, so add them only for poems that fail on the device.
+Not the plan. The Kindle test showed that pre-shaped cluster text matches a HarfBuzz picture, so the poems stay text. A PNG would cost more and would not be selectable. Debug test 7 is that picture, kept only as the reference from the test.

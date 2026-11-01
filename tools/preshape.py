@@ -35,6 +35,13 @@ Examples:
       --out-html /tmp/khai-khai-preshape.html \\
       --font-url khai-khai-preshape.ttf
 
+  python3 tools/preshape.py --site
+
+``--site`` reads every HTML file under ``src/``, shapes all Bengali text
+into one cluster font, drops unused glyphs and hinting, and writes
+``fonts/AmoyBengali.ttf``, ``fonts/AmoyBengali.woff``, and the served
+pages (the ``src/`` prefix stripped). ``<title>`` is left as Unicode.
+
 Text input: UTF-8, one forced line per line, a blank line between paragraphs.
 HTML input: tags are kept. ``<br>`` is the line break. A newline in a text
 node is HTML source whitespace, not a line break. Bengali text nodes are
@@ -292,7 +299,7 @@ class Preshaper:
             converted.append([self.convert_line(line) for line in paragraph])
         return converted
 
-    def save_font(self, out_path, family):
+    def save_font(self, out_path, family, subset=False, woff_path=None):
         from fontTools.pens.ttGlyphPen import TTGlyphPen
 
         font = self.src
@@ -386,10 +393,18 @@ class Preshaper:
             if tag in font:
                 del font[tag]
 
+        if subset:
+            _subset_used_unicodes(font)
+            font["head"].created = 3456000000
+            font["head"].modified = 3456000000
+            font.recalcTimestamp = False
+
         out_path = Path(out_path)
         out_path.parent.mkdir(parents=True, exist_ok=True)
         font.save(str(out_path))
-        _sanity_check_font(self.TTFont, out_path, mapping, self.mode)
+        _sanity_check_font(self.TTFont, out_path, mapping if not subset else None, self.mode)
+        if woff_path:
+            _write_woff(self.TTFont, out_path, woff_path)
         return str(out_path)
 
 
@@ -446,14 +461,44 @@ def _default_family(mode):
     return "Amoy Preshape Glyph"
 
 
+def _subset_used_unicodes(font):
+    """Keep only cmap codepoints and the glyphs they use. Drop hinting.
+
+    This is ``pyftsubset --unicodes='*' --no-hinting``. The Kindle font
+    otherwise still carries every Noto outline.
+    """
+    from fontTools.subset import Options, Subsetter
+
+    options = Options()
+    options.hinting = False
+    unicodes = list(font.getBestCmap().keys())
+    subsetter = Subsetter(options=options)
+    subsetter.populate(unicodes=unicodes)
+    subsetter.subset(font)
+
+
+def _write_woff(ttfont_cls, ttf_path, woff_path):
+    font = ttfont_cls(str(ttf_path), recalcTimestamp=False)
+    font.flavor = "woff"
+    font["head"].created = 3456000000
+    font["head"].modified = 3456000000
+    Path(woff_path).parent.mkdir(parents=True, exist_ok=True)
+    font.save(str(woff_path))
+
+
 def _sanity_check_font(ttfont_cls, path, mapping, mode):
     font = ttfont_cls(str(path))
     for tag in ("GSUB", "GPOS", "GDEF"):
         if tag in font:
             raise RuntimeError("preshape font still has a %s table" % tag)
     cmap = font.getBestCmap()
-    if cmap != mapping:
+    if mapping is not None and cmap != mapping:
         raise RuntimeError("saved cmap does not match the PUA map")
+    if mapping is None:
+        if not cmap or 0x20 not in cmap:
+            raise RuntimeError("subset font lost the space glyph")
+        if not any(code >= PUA_START for code in cmap):
+            raise RuntimeError("subset font has no Private Use characters")
     for sub in font["cmap"].tables:
         if sub.format != 4:
             raise RuntimeError("cmap is not format 4; old WebKit may ignore it")
@@ -533,6 +578,7 @@ class _Rewriter(HTMLParser):
         self.convert_line = convert_line
         self.parts = []
         self.skip = 0
+        self.raw_text = 0
 
     def handle_decl(self, decl):
         self.parts.append("<!%s>" % decl)
@@ -541,17 +587,23 @@ class _Rewriter(HTMLParser):
         self.parts.append(self._tag(tag, attrs, False))
         if tag.lower() in ("script", "style"):
             self.skip += 1
+        if tag.lower() == "title":
+            # The browser chrome does not use the page webfont. Leave the
+            # Unicode title so a phone tab can still show the poem name.
+            self.raw_text += 1
 
     def handle_endtag(self, tag):
         if tag.lower() in ("script", "style") and self.skip:
             self.skip -= 1
+        if tag.lower() == "title" and self.raw_text:
+            self.raw_text -= 1
         self.parts.append("</%s>" % tag)
 
     def handle_startendtag(self, tag, attrs):
         self.parts.append(self._tag(tag, attrs, True))
 
     def handle_data(self, data):
-        if self.skip or not _needs_shape(data):
+        if self.skip or self.raw_text or not _needs_shape(data):
             self.parts.append(_escape_text(data))
             return
         self.parts.append(self.convert_line(_html_source_line(data)))
@@ -587,17 +639,138 @@ def _font_face_css(family, font_url):
     ) % (family, font_url, font_url, family)
 
 
-def rewrite_html(html, convert_line, family, font_url):
+def rewrite_html(html, convert_line, family=None, font_url=None, inject_style=True):
     parser = _Rewriter(convert_line)
     parser.feed(html)
     parser.close()
     text = "".join(parser.parts)
-    style = "<style>\n%s</style>\n" % _font_face_css(family, font_url)
-    if "</head>" in text:
-        text = text.replace("</head>", style + "</head>", 1)
-    else:
-        text = style + text
+    if inject_style:
+        if not family or not font_url:
+            raise RuntimeError("inject_style needs a family and a font URL")
+        style = "<style>\n%s</style>\n" % _font_face_css(family, font_url)
+        if "</head>" in text:
+            text = text.replace("</head>", style + "</head>", 1)
+        else:
+            text = style + text
     return text
+
+
+def build_site(root=None):
+    """Build fonts/AmoyBengali from every HTML file under src/ and write the served pages."""
+    root = Path(root) if root else Path(__file__).resolve().parents[1]
+    src_root = root / "src"
+    sources = sorted(path for path in src_root.rglob("*.html") if path.is_file())
+    if not sources:
+        raise SystemExit("no HTML files under %s" % src_root)
+    noto = root / "fonts" / "NotoSansBengali-Regular.ttf"
+    if not noto.is_file():
+        raise SystemExit("missing shaping source %s" % noto)
+
+    shaper = Preshaper(str(noto), "cluster")
+    unicode_lines = []
+    pua_lines = []
+
+    def convert_line(text):
+        unicode_lines.append(text)
+        shaped = shaper.convert_line(text)
+        pua_lines.append(shaped)
+        return shaped
+
+    pages = []
+    for src in sources:
+        rel = src.relative_to(src_root)
+        html = src.read_text(encoding="utf-8")
+        converted = rewrite_html(html, convert_line, inject_style=False)
+        # After the charset metas, not before the doctype. A comment in
+        # front of the doctype can push an old WebKit into quirks mode.
+        banner = (
+            "<!-- Generated from src/%s. Edit that file, then run python3 tools/preshape.py --site. -->\n"
+            % rel.as_posix()
+        )
+        marker = '<meta http-equiv="Content-Type" content="text/html; charset=utf-8">\n'
+        if marker in converted:
+            converted = converted.replace(marker, marker + banner, 1)
+        else:
+            converted = banner + converted
+        pages.append((root / rel, converted))
+
+    if shaper.warnings:
+        for warning in shaper.warnings:
+            sys.stderr.write("warning: %s\n" % warning)
+        raise SystemExit("site build stopped because shaping reported a missing glyph")
+
+    out_ttf = root / "fonts" / "AmoyBengali.ttf"
+    out_woff = root / "fonts" / "AmoyBengali.woff"
+    shaper.save_font(out_ttf, "Amoy Bengali", subset=True, woff_path=out_woff)
+
+    reference = render_shaped_image(str(noto), [unicode_lines], 32, pad=12)
+    plain = render_unshaped_image(str(out_ttf), [pua_lines], 32, pad=12)
+    stats = diff_stats(plain, reference)
+    sys.stdout.write(
+        "site check mean_abs=%.4f frac_gt_40=%.5f clusters=%s glyphs=%s\n"
+        % (
+            stats["mean_abs"],
+            stats["frac_gt_40"],
+            len(shaper.order),
+            _require("fontTools.ttLib", "fonttools").TTFont(str(out_ttf))["maxp"].numGlyphs,
+        )
+    )
+    if stats["frac_gt_40"] > 0.04 or stats["mean_abs"] > 8:
+        raise SystemExit("subset font does not match HarfBuzz when the shaper is off")
+    _assert_shaper_passthrough(out_ttf, pua_lines)
+
+    for path, html in pages:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(html, encoding="utf-8")
+        visible = re.sub(r"<title>.*?</title>", "", html, flags=re.S)
+        visible = re.sub(r"<!--.*?-->", "", visible, flags=re.S)
+        if BENGALI_RE.search(visible):
+            raise SystemExit("Bengali Unicode left in the body of %s" % path)
+    sys.stdout.write(
+        "wrote %s (%s bytes) and %s (%s bytes), %s clusters, %s pages\n"
+        % (
+            out_ttf,
+            out_ttf.stat().st_size,
+            out_woff,
+            out_woff.stat().st_size,
+            len(shaper.order),
+            len(pages),
+        )
+    )
+    return 0
+
+
+def _assert_shaper_passthrough(font_path, lines):
+    """A real shaper must not reorder Private Use text or apply GPOS."""
+    hb = _require("uharfbuzz", "uharfbuzz")
+    tt = _require("fontTools.ttLib", "fonttools").TTFont(str(font_path))
+    cmap = tt.getBestCmap()
+    order = tt.getGlyphOrder()
+    nominal = {}
+    for code, name in cmap.items():
+        nominal[code] = order.index(name)
+    blob = hb.Blob.from_file_path(str(font_path))
+    face = hb.Face(blob)
+    font = hb.Font(face)
+    font.scale = (face.upem, face.upem)
+    for line in lines:
+        if not line:
+            continue
+        buf = hb.Buffer()
+        buf.add_str(line)
+        buf.direction = "ltr"
+        buf.script = "Beng"
+        buf.language = "bn"
+        hb.shape(font, buf)
+        if len(buf.glyph_infos) != len(line):
+            raise RuntimeError("shaper changed the length of a PUA line")
+        for ch, info, pos in zip(line, buf.glyph_infos, buf.glyph_positions):
+            expected = nominal.get(ord(ch))
+            if info.codepoint != expected or pos.x_offset or pos.y_offset:
+                raise RuntimeError(
+                    "shaper moved U+%04X (glyph %s, expected %s, offset %s,%s)"
+                    % (ord(ch), info.codepoint, expected, pos.x_offset, pos.y_offset)
+                )
 
 
 def simple_html_page(paragraphs, family, font_url, title, label):
@@ -914,6 +1087,12 @@ def to_bilevel(image, threshold=160):
 
 
 def main(argv):
+    if "--site" in argv:
+        root = None
+        if "--root" in argv:
+            root = argv[argv.index("--root") + 1]
+        return build_site(root)
+
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("input", help="UTF-8 text file, or an HTML file")
     parser.add_argument("--font", required=True, help="source TTF, shaped with HarfBuzz")
