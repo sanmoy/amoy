@@ -1,10 +1,12 @@
 #!/usr/bin/env python3
-"""Regenerate figure SVGs, 1-bit-style PNGs, and the figure HTML pages.
+"""Regenerate figure SVGs, PNGs, and the Unicode figure pages under src/figures/.
 
-The site does not run this file. Pages use the committed PNGs.
+The site does not run this file. Served pages are produced afterwards by
+``python3 tools/preshape.py --site``, which pre-shapes the Bengali names.
 Requires Pillow. From the repo root:
 
     python3 figures/render.py
+    python3 tools/preshape.py --site
 """
 
 from __future__ import print_function
@@ -16,8 +18,11 @@ import re
 from PIL import Image, ImageDraw
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
+REPO = os.path.dirname(ROOT)
 SRC = os.path.join(ROOT, "src")
 IMG = os.path.join(ROOT, "img")
+# Unicode sources. tools/preshape.py --site writes the served copies to figures/.
+HTML_SRC = os.path.join(REPO, "src", "figures")
 SIZE = 600
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
@@ -448,6 +453,7 @@ def main():
         raise SystemExit("DRAW/TRACED and FIGURES are out of sync")
     os.makedirs(SRC, exist_ok=True)
     os.makedirs(IMG, exist_ok=True)
+    os.makedirs(HTML_SRC, exist_ok=True)
     n = len(FIGURES)
     for i, (slug, english, bengali) in enumerate(FIGURES):
         png_path = os.path.join(IMG, slug + ".png")
@@ -463,11 +469,11 @@ def main():
         audit(png_path)
         prev_slug = FIGURES[(i - 1) % n][0]
         next_slug = FIGURES[(i + 1) % n][0]
-        page_path = os.path.join(ROOT, slug + ".html")
+        page_path = os.path.join(HTML_SRC, slug + ".html")
         with open(page_path, "w", encoding="utf-8") as f:
             f.write(page_html(slug, english, bengali, prev_slug, next_slug))
         print("%s.png %d bytes" % (slug, os.path.getsize(png_path)))
-    with open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8") as f:
+    with open(os.path.join(HTML_SRC, "index.html"), "w", encoding="utf-8") as f:
         f.write(index_html(FIGURES))
     print("wrote", n, "figures")
 

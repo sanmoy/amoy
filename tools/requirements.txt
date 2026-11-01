@@ -1,0 +1,6 @@
+# Used only by tools/preshape.py.
+# The site itself is static and has no build step.
+uharfbuzz==0.57.0
+fonttools==4.68.0
+pillow==13.0.0
+freetype-py==2.5.1

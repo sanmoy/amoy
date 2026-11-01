@@ -1,18 +1,18 @@
 /* Shared styles for the Amoy Kindle site.
    See AGENTS.md before changing this file.
    Black on white, large type, no animation, no hover-only controls.
-   The webfont covers Bengali and punctuation, not A–Z, so it is
+   Amoy Bengali is the pre-shaped cluster font. It has no A–Z, so it is
    applied only through .bn. English stays on the device font. */
 
 @font-face {
-  font-family: "Noto Sans Bengali";
+  font-family: "Amoy Bengali";
   font-style: normal;
   font-weight: normal;
-  /* First src: old WebKit that rejects format(). */
-  src: url("fonts/NotoSansBengali-Regular.ttf");
+  /* First src: old WebKit that rejects format(). The Kindle uses this. */
+  src: url("fonts/AmoyBengali.ttf");
   /* Later src wins where format() is understood. WOFF, then TTF. */
-  src: url("fonts/NotoSansBengali-Regular.woff") format("woff"),
-       url("fonts/NotoSansBengali-Regular.ttf") format("truetype");
+  src: url("fonts/AmoyBengali.woff") format("woff"),
+       url("fonts/AmoyBengali.ttf") format("truetype");
 }
 
 html {
@@ -48,7 +48,7 @@ a {
 }
 
 .bn {
-  font-family: "Noto Sans Bengali", "Nirmala UI", "Vrinda", "Bangla MN", "Kohinoor Bangla", sans-serif;
+  font-family: "Amoy Bengali", sans-serif;
   font-weight: normal;
   line-height: 1.75;
 }
