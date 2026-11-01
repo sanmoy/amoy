@@ -39,7 +39,7 @@ Pushing to `main` publishes the site. There is no build. What is in the repo roo
 ## Site structure
 
 ```
-index.html              Home. Title, then Poems, Figures, and Songs. English.
+index.html              Home. Title, then Figures, Poems, and Songs. English.
 style.css               Shared stylesheet. Linked relatively from every page.
 .nojekyll               Disables Jekyll.
 src/poems/              Unicode poem sources. Edit these, not the served poem pages.
@@ -89,9 +89,9 @@ Bengali pages are Unicode in `src/` and pre-shaped in the served tree. Do not ed
 
 1. Transcribe the poem yourself into Unicode. Preserve its line breaks and stanza breaks. Keep zero-width non-joiners (U+200C) where the source uses them to stop a conjunct, and keep danda (U+0964), em dashes, and the quotation marks the source uses. Do not "clean up" spelling.
 2. Create `src/poems/<ascii-slug>.html`. Copy the head from `src/poems/khai-khai.html` (both charset metas, viewport, relative `../style.css`). Set `<html lang="bn">` when the poem is Bengali, or `lang="en"` when it is English. The `<title>` stays Unicode on the served page. The tool does not pre-shape it, so a phone tab can show the name with a system font.
-3. Put a back link first: `<p class="nav"><a lang="en" href="index.html">Poems</a></p>`.
+3. Put a back link first: `<p class="nav"><a lang="en" href="index.html">Poems</a></p>`. Repeat it after the poem. Do not write Previous or Next by hand. `preshape.py --site` replaces both of those bars with Previous, Poems, and Next, using the same pager as the figure pages. Order is the list in `src/poems/index.html`. The first poem has no Previous and the last has no Next.
 4. Use an `h1` for the title. For Bengali, add `class="bn"` and `lang="bn"`. Credit the poet in a paragraph. For a Bengali name, use `class="bn"` and `lang="bn"`. A Latin-script credit next to it is useful on a device that never loads the font.
-5. Put the poem in `<div class="poem bn" lang="bn">` (drop `bn` and `lang="bn"` for an English poem). One `<p>` per stanza. Inside the stanza, join lines with `<br>` and do not put spaces or newlines between the end of a line and the `<br>` that follows, or a space appears at the start of the next line. Separate stanzas by closing the `</p>` and opening another. Repeat the back link after the poem.
+5. Put the poem in `<div class="poem bn" lang="bn">` (drop `bn` and `lang="bn"` for an English poem). One `<p>` per stanza. Inside the stanza, join lines with `<br>` and do not put spaces or newlines between the end of a line and the `<br>` that follows, or a space appears at the start of the next line. Separate stanzas by closing the `</p>` and opening another.
 6. Add one `<li>` to the single list in `src/poems/index.html`. Bengali titles need `class="bn"` and `lang="bn"` on the `<a>`. Do not add subsections.
 7. Run `python3 tools/preshape.py --site`. Dependencies are in `tools/requirements.txt`. The command reads `src/`, writes `fonts/AmoyBengali.ttf` and `.woff`, and writes the served pages. It checks that FreeType, with no shaper, matches HarfBuzz on the Unicode source.
 8. Check the new page in a browser: conjuncts look joined, the back link returns to the list, and the stylesheet loads. Relative links only. The body will look like boxes if you open the file without the font.
@@ -122,7 +122,7 @@ To add a figure without the script, draw `figures/src/<slug>.svg`, export a 600Ã
 
 When a song is added:
 
-1. Create `songs/<ascii-slug>.html`. Copy the head from `songs/index.html`. Start with `<p class="nav"><a href="index.html">Songs</a></p>`, then an `h1` for the title, then the words. Repeat the back link after a long song.
+1. Create `songs/<ascii-slug>.html`. Copy the head from `songs/index.html`. Start with `<p class="nav"><a href="index.html">Songs</a></p>`, then an `h1` for the title, then the words. Repeat that back link after the song. For a Bengali song the link needs `lang="en"`, matching `src/poems/khai-khai.html`. Do not write Previous or Next by hand. `preshape.py --site` replaces both bars, in the order of `src/songs/index.html`. The first song has no Previous and the last has no Next.
 2. Add one `<li>` to the `ul.menu` on the list page. If the list is still the placeholder paragraph, replace that paragraph with `<ul class="menu">` and one `<li>`, in the same shape as `src/poems/index.html`.
 3. If the title or the words contain Bengali, do not leave that Unicode in the served file. Move the list to `src/songs/index.html` and the song to `src/songs/<ascii-slug>.html`, with `class="bn"` and `lang="bn"` on the Bengali parts only. Relative links in those sources must be the served-page links (`../style.css`, `index.html`), the same way `src/poems/` works.
 4. Run `python3 tools/preshape.py --site`. That rebuilds the font and writes `songs/`. Commit the sources, the served pages, and both `fonts/AmoyBengali` files together.
