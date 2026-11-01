@@ -11,6 +11,7 @@ from __future__ import print_function
 
 import math
 import os
+import re
 
 from PIL import Image, ImageDraw
 
@@ -34,7 +35,12 @@ FIGURES = [
     ("tree", "Tree", "গাছ"),
     ("fish", "Fish", "মাছ"),
     ("ball", "Ball", "বল"),
+    ("apple", "Apple", "আপেল"),
 ]
+
+# These SVGs are traced from Amoy's flash cards. render.py rasterizes
+# them and does not redraw them.
+TRACED = set(["hand", "eye", "apple"])
 
 
 class Drawer(object):
@@ -98,21 +104,6 @@ def star_points(cx, cy, outer):
     return pts
 
 
-def sine_lens(cx, cy, rx, ry, steps=80):
-    pts = []
-    for i in range(steps + 1):
-        t = i / float(steps)
-        x = cx - rx + 2.0 * rx * t
-        y = cy - ry * math.sin(math.pi * t)
-        pts.append((x, y))
-    for i in range(steps, -1, -1):
-        t = i / float(steps)
-        x = cx - rx + 2.0 * rx * t
-        y = cy + ry * math.sin(math.pi * t)
-        pts.append((x, y))
-    return pts
-
-
 def heart_points(cx, cy, scale, steps=180):
     pts = []
     for i in range(steps):
@@ -128,47 +119,8 @@ def heart_points(cx, cy, scale, steps=180):
     return pts
 
 
-def finger(d, x, top, bottom, width):
-    # Shaft plus a round tip. Overlaps the palm so there is no gap.
-    d.rect((x, top + width / 2.0, x + width, bottom), BLACK)
-    d.ellipse((x, top, x + width, top + width), BLACK)
-
-
-def capsule_points(x0, y0, x1, y1, width, steps=18):
-    """Hard-edged capsule from (x0, y0) to (x1, y1). No rotated bitmaps."""
-    ang = math.atan2(y1 - y0, x1 - x0)
-    hw = width / 2.0
-    pts = []
-    for i in range(steps + 1):
-        a = ang - math.pi / 2.0 + math.pi * i / float(steps)
-        pts.append((x1 + hw * math.cos(a), y1 + hw * math.sin(a)))
-    for i in range(steps + 1):
-        a = ang + math.pi / 2.0 + math.pi * i / float(steps)
-        pts.append((x0 + hw * math.cos(a), y0 + hw * math.sin(a)))
-    return pts
-
-
 def draw_star(d):
     d.polygon(star_points(300, 310, 250), BLACK)
-
-
-def draw_eye(d):
-    d.polygon(sine_lens(300, 300, 230, 118), BLACK)
-    d.ellipse((228, 228, 372, 372), WHITE)
-    d.ellipse((262, 262, 338, 338), BLACK)
-
-
-def draw_hand(d):
-    # Palm facing the reader. Thumb on the left, four thick fingers.
-    finger(d, 196, 148, 360, 72)  # index
-    finger(d, 284, 108, 360, 72)  # middle
-    finger(d, 372, 158, 360, 72)  # ring
-    finger(d, 460, 214, 360, 72)  # pinky
-    d.rect((180, 300, 548, 470), BLACK)
-    # Thumb starts well inside the palm so the join stays solid.
-    d.polygon(capsule_points(260, 345, 88, 408, 102), BLACK)
-    # Palm heel drawn last so it covers the wedge under the thumb.
-    d.ellipse((60, 400, 548, 540), BLACK)
 
 
 def draw_heart(d):
@@ -251,8 +203,6 @@ def draw_ball(d):
 
 DRAW = {
     "star": draw_star,
-    "eye": draw_eye,
-    "hand": draw_hand,
     "heart": draw_heart,
     "circle": draw_circle,
     "moon": draw_moon,
@@ -262,6 +212,137 @@ DRAW = {
     "fish": draw_fish,
     "ball": draw_ball,
 }
+
+
+_SVG_TOKEN = re.compile(
+    r"[MmLlHhVvCcSsQqTtAaZz]|[-+]?(?:\d*\.\d+|\d+)(?:[eE][-+]?\d+)?"
+)
+
+
+def _flatten_cubic(p0, p1, p2, p3, n=12):
+    pts = []
+    for i in range(1, n + 1):
+        t = i / float(n)
+        u = 1.0 - t
+        x = (u * u * u) * p0[0] + 3 * (u * u) * t * p1[0] + 3 * u * (t * t) * p2[0] + (t * t * t) * p3[0]
+        y = (u * u * u) * p0[1] + 3 * (u * u) * t * p1[1] + 3 * u * (t * t) * p2[1] + (t * t * t) * p3[1]
+        pts.append((x, y))
+    return pts
+
+
+def _svg_subpaths(d):
+    tokens = _SVG_TOKEN.findall(d)
+    i = 0
+    cmd = None
+    cx = cy = 0.0
+    sx = sy = 0.0
+    sub = []
+    subs = []
+
+    def num():
+        v = float(tokens[i])
+        return v
+
+    while i < len(tokens):
+        if re.match(r"[A-Za-z]", tokens[i]):
+            cmd = tokens[i]
+            i += 1
+        if cmd in ("M", "m"):
+            x = float(tokens[i]); i += 1
+            y = float(tokens[i]); i += 1
+            if cmd == "m":
+                x += cx
+                y += cy
+            if sub:
+                subs.append(sub)
+            sub = [(x, y)]
+            cx, cy = x, y
+            sx, sy = x, y
+            cmd = "L" if cmd == "M" else "l"
+            continue
+        if cmd in ("L", "l"):
+            x = float(tokens[i]); i += 1
+            y = float(tokens[i]); i += 1
+            if cmd == "l":
+                x += cx
+                y += cy
+            sub.append((x, y))
+            cx, cy = x, y
+            continue
+        if cmd in ("C", "c"):
+            nums = []
+            for _k in range(6):
+                nums.append(float(tokens[i])); i += 1
+            x1, y1, x2, y2, x, y = nums
+            if cmd == "c":
+                x1 += cx; y1 += cy
+                x2 += cx; y2 += cy
+                x += cx; y += cy
+            sub.extend(_flatten_cubic((cx, cy), (x1, y1), (x2, y2), (x, y)))
+            cx, cy = x, y
+            continue
+        if cmd in ("Z", "z"):
+            if sub and sub[0] != sub[-1]:
+                sub.append(sub[0])
+            subs.append(sub)
+            sub = []
+            cx, cy = sx, sy
+            continue
+        raise SystemExit("unsupported SVG path command: %s" % cmd)
+    if sub:
+        subs.append(sub)
+    return subs
+
+
+def rasterize_svg(path):
+    """Even-odd fill of an SVG path onto a 600x600 black-and-white image.
+
+    Edges are stair-stepped, same as the Pillow polygons used for the
+    other figures, so the PNG has no grey antialias halo.
+    """
+    text = open(path, encoding="utf-8").read()
+    chunks = re.findall(r'<path\b[^>]*\bd="([^"]+)"', text, re.S)
+    if not chunks:
+        raise SystemExit("no path in " + path)
+    subs = []
+    for d in chunks:
+        subs.extend(_svg_subpaths(re.sub(r"\s+", " ", d)))
+    edges = []
+    for sub in subs:
+        for i in range(len(sub) - 1):
+            edges.append((sub[i], sub[i + 1]))
+    buf = bytearray(SIZE * SIZE)
+    for y in range(SIZE):
+        ys = y + 0.5
+        xs = []
+        for (x0, y0), (x1, y1) in edges:
+            if (y0 <= ys < y1) or (y1 <= ys < y0):
+                t = (ys - y0) / (y1 - y0)
+                xs.append(x0 + t * (x1 - x0))
+        xs.sort()
+        k = 0
+        row = y * SIZE
+        while k + 1 < len(xs):
+            a = int(math.ceil(xs[k] - 1e-6))
+            b = int(math.floor(xs[k + 1] + 1e-6))
+            if b >= a:
+                if a < 0:
+                    a = 0
+                if b >= SIZE:
+                    b = SIZE - 1
+                if a <= b:
+                    for x in range(a, b + 1):
+                        buf[row + x] = 255
+            k += 2
+    # buf is 255 where the shape is black. Build an RGB image.
+    im = Image.new("RGB", (SIZE, SIZE), WHITE)
+    pix = im.load()
+    for y in range(SIZE):
+        row = y * SIZE
+        for x in range(SIZE):
+            if buf[row + x]:
+                pix[x, y] = BLACK
+    return im
 
 
 def save_png(im, path):
@@ -361,20 +442,25 @@ def audit(path):
 
 
 def main():
-    if set(DRAW) != set(slug for slug, _e, _b in FIGURES):
-        raise SystemExit("DRAW and FIGURES are out of sync")
+    known = set(DRAW) | TRACED
+    wanted = set(slug for slug, _e, _b in FIGURES)
+    if known != wanted:
+        raise SystemExit("DRAW/TRACED and FIGURES are out of sync")
     os.makedirs(SRC, exist_ok=True)
     os.makedirs(IMG, exist_ok=True)
     n = len(FIGURES)
     for i, (slug, english, bengali) in enumerate(FIGURES):
-        d = Drawer()
-        DRAW[slug](d)
         png_path = os.path.join(IMG, slug + ".png")
         svg_path = os.path.join(SRC, slug + ".svg")
-        save_png(d.im, png_path)
+        if slug in TRACED:
+            save_png(rasterize_svg(svg_path), png_path)
+        else:
+            d = Drawer()
+            DRAW[slug](d)
+            save_png(d.im, png_path)
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(d.svg())
         audit(png_path)
-        with open(svg_path, "w", encoding="utf-8") as f:
-            f.write(d.svg())
         prev_slug = FIGURES[(i - 1) % n][0]
         next_slug = FIGURES[(i + 1) % n][0]
         page_path = os.path.join(ROOT, slug + ".html")

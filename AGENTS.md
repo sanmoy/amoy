@@ -47,7 +47,7 @@ poems/khai-khai.html    Sukumar Ray, খাই খাই.
 figures/index.html      Picture-book index. Two columns, big tap targets.
 figures/<name>.html     One figure: large PNG, English name, Bengali name, Previous and Next.
 figures/img/*.png       The images the pages show. 600×600, black and white only.
-figures/src/*.svg       Vector sources. Not linked from pages.
+figures/src/*.svg       Vector sources. Not linked from pages. Hand, eye, and apple are traced from flash cards.
 figures/render.py       Regenerates the SVGs, PNGs, and figure HTML. Not used at serve time.
 fonts/                  Noto Sans Bengali Regular (OFL), TTF and WOFF, plus OFL.txt.
 AGENTS.md               This file.
@@ -90,7 +90,7 @@ The picture-book order is the `FIGURES` list in `figures/render.py`. Previous an
 
 1. Add a draw function in `figures/render.py` that paints only pure black `(0, 0, 0)` and pure white `(255, 255, 255)` through `Drawer` (`polygon`, `ellipse`, `rect`). Do not rotate or resize a bitmap; Pillow's rotate adds grey pixels. Keep the shape inside the 600×600 canvas with a margin, and make it something a toddler recognises at a glance.
 2. Add one tuple to `FIGURES`: `("slug", "English name", "বাংলা নাম")`. The slug is ASCII. Put `class="bn"` and `lang="bn"` only on the Bengali name. The webfont has no Latin letters, so the English name must not use `class="bn"`.
-3. From the repo root run `python3 figures/render.py`. It needs Pillow. The script rewrites `figures/src/<slug>.svg`, `figures/img/<slug>.png`, `figures/<slug>.html`, and `figures/index.html`, and it refuses to save a PNG that contains any colour other than black and white. PNGs are an 8-bit palette of those two colours, not interlaced, with no alpha. 8-bit palette is safer for old decoders than 1-bit, and it is still free of grey.
+3. From the repo root run `python3 figures/render.py`. It needs Pillow. The script writes `figures/src/<slug>.svg`, `figures/img/<slug>.png`, `figures/<slug>.html`, and `figures/index.html`, and it refuses to save a PNG that contains any colour other than black and white. PNGs are an 8-bit palette of those two colours, not interlaced, with no alpha. 8-bit palette is safer for old decoders than 1-bit, and it is still free of grey. Slugs in `TRACED` (`hand`, `eye`, `apple`) are the exception: those SVGs were traced from Amoy's flash cards, and the script only rasterizes them. Do not replace those files with a procedural drawing.
 4. Do not link the SVG from HTML. The figure page uses `img/<slug>.png`. The index uses the same file, shown smaller.
 5. Check the new shape on its page, then Previous and Next, including the wrap from the last figure back to the first. Bengali should render with Noto Sans Bengali. Links stay relative.
 
