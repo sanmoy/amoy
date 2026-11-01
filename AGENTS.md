@@ -11,7 +11,7 @@ This site is for Amoy, a 15-month-old, and is meant to be read on a very old Ama
 - Plain HTML and CSS. JavaScript only if it is truly needed, and then only plain ES3: no `let` or `const`, no arrow functions, no template strings, no `fetch`, no modules. Pages must work fully with JavaScript disabled. The current site has no JavaScript.
 - No frameworks, no build step, no npm, no bundler.
 - Do not rely on flexbox, grid, or CSS variables. Stick to CSS that old WebKit understands: blocks, margins, padding, borders, font sizes.
-- E-paper: black (`#000000`) on white (`#ffffff`), high contrast, large text, big tap targets. No animation, no video, no hover-dependent UI, as few images as possible. Pages should load quickly.
+- E-paper: black (`#000000`) on white (`#ffffff`), high contrast, large text, big tap targets. No animation, no video, no hover-dependent UI. Keep poem pages free of images. Figure pages are the exception: one black-and-white PNG each, as described below. Pages should load quickly.
 - Bengali must be real Unicode text, not pictures, unless the Kindle fallback described at the bottom of this file is being added on purpose.
 - Every HTML file starts with both of these, in the first kilobyte:
 
@@ -39,19 +39,25 @@ Pushing to `main` publishes the site. There is no build. What is in the repo roo
 ## Site structure
 
 ```
-index.html              Home. Title, then a list of sections. English.
+index.html              Home. Title, then Poems, Figures, and Songs. English.
 style.css               Shared stylesheet. Linked relatively from every page.
 .nojekyll               Disables Jekyll.
-src/poems/              Unicode sources. Edit these, not the served poem pages.
+src/poems/              Unicode poem sources. Edit these, not the served poem pages.
 poems/index.html        Generated list of poems. English and pre-shaped titles.
 poems/khai-khai.html    Generated. Sukumar Ray, খাই খাই, pre-shaped.
-figures/index.html      Placeholder. Figures are coming soon. English, not generated.
+src/figures/            Unicode figure pages. Bengali names live here.
+figures/index.html      Generated picture-book index. Two columns, big tap targets.
+figures/<name>.html     Generated. Large PNG, English name, pre-shaped Bengali name, Previous and Next.
+figures/img/*.png       The images the pages show. 600×600, black and white only.
+figures/src/*.svg       Vector sources. Not linked from pages. Hand, eye, and apple are traced from flash cards.
+figures/render.py       Regenerates SVGs, PNGs, and src/figures. Not used at serve time.
+songs/index.html        Song list. Empty until songs are added. English for now.
 fonts/AmoyBengali.ttf   Site font. Pre-shaped clusters, subset, no hinting.
 fonts/AmoyBengali.woff  Same font for browsers that understand format().
-fonts/NotoSansBengali-* Unmodified Noto. Shaping source and debug test 1 only.
+fonts/NotoSansBengali-* Unmodified Noto. Shaping source only. Pages do not load it.
 fonts/OFL.txt           SIL OFL for Noto and for Amoy Bengali, which is derived from it.
-debug/                  Kindle shaping tests. Not linked from the home page. See below.
 tools/preshape.py       Builds Amoy Bengali and the served pages (--site).
+docs/fonts.md           Kindle Bengali findings and how to regenerate the font.
 AGENTS.md               This file.
 README.md               Short intro.
 ```
@@ -66,7 +72,7 @@ The pages load `fonts/AmoyBengali.ttf` (and `.woff` where `format()` is understo
 
 `tools/preshape.py --site` shapes every Bengali string under `src/` with HarfBuzz, bakes each cluster into one composite glyph, and maps it to a Private Use Area character. GSUB and GPOS are removed. Unused Noto glyphs are dropped and hinting is removed, which is what keeps the file small. The served poem body is those Private Use characters in visual order, plus ordinary spaces so a line can still wrap. The Kindle draws them left to right and does not need a shaper. A current browser does the same, because a shaper has nothing to reorder.
 
-Do not point poem pages at `fonts/NotoSansBengali-Regular.ttf`. That file stays in the repo as the shaping source and as debug test 1. It is about 200 KB and the Kindle would download it.
+Do not point pages at `fonts/NotoSansBengali-Regular.ttf`. That file stays in the repo as the shaping source. It is about 200 KB and the Kindle would download it. Why the served font is built this way is in `docs/fonts.md`.
 
 `@font-face` lists a bare TTF `src` first, then a second `src` with WOFF and TTF `format()` hints. Keep that order. Old WebKit that does not understand `format()` uses the first declaration and downloads only the TTF. Browsers that understand it use the second and download the WOFF.
 
@@ -93,32 +99,48 @@ Sukumar Ray died in 1923, so his poems are in the public domain. Credit him on t
 
 The served HTML does not carry a second Unicode copy of the poem. That copy would be downloaded by the Kindle. The Unicode text lives in `src/`.
 
+## How to add a figure
+
+Figures are solid black shapes on white, in the same style as a filled five-pointed star: one bold silhouette, no grey, no text inside the picture. Pages must point at the PNG. Old Kindle WebKit is unreliable with SVG.
+
+The picture-book order is the `FIGURES` list in `figures/render.py`. Previous and Next wrap around that list. Bengali names are Unicode in `src/figures/` and pre-shaped in `figures/`. Do not edit `figures/*.html` by hand.
+
+1. Add a draw function in `figures/render.py` that paints only pure black `(0, 0, 0)` and pure white `(255, 255, 255)` through `Drawer` (`polygon`, `ellipse`, `rect`). Do not rotate or resize a bitmap; Pillow's rotate adds grey pixels. Keep the shape inside the 600×600 canvas with a margin, and make it something a toddler recognises at a glance.
+2. Add one tuple to `FIGURES`: `("slug", "English name", "বাংলা নাম")`. The slug is ASCII. Put `class="bn"` and `lang="bn"` only on the Bengali name. The webfont has no Latin letters, so the English name must not use `class="bn"`.
+3. From the repo root run `python3 figures/render.py`, then `python3 tools/preshape.py --site`. `render.py` needs Pillow. It writes `figures/src/<slug>.svg`, `figures/img/<slug>.png`, and the Unicode pages under `src/figures/`. It refuses to save a PNG that contains any colour other than black and white. PNGs are an 8-bit palette of those two colours, not interlaced, with no alpha. `preshape.py` then rebuilds `fonts/AmoyBengali` and writes the served `figures/*.html`. Slugs in `TRACED` (`hand`, `eye`, `apple`) are traced from Amoy's flash cards. The script only rasterizes those SVGs. Do not replace them with a procedural drawing.
+4. Do not link the SVG from HTML. The figure page uses `img/<slug>.png`. The index uses the same file, shown smaller.
+5. Check the new shape on its page, then Previous and Next, including the wrap from the last figure back to the first. The Bengali name should render with Amoy Bengali. Links stay relative. The name will look like boxes if the font file is missing.
+
+To add a figure without the script, draw `figures/src/<slug>.svg`, export a 600×600 PNG with every pixel forced to `#000000` or `#ffffff`, and copy `src/figures/star.html` to `src/figures/<slug>.html`. Point Previous and Next at the neighbours, update those neighbours, and add a cell to `src/figures/index.html`. Then run `python3 tools/preshape.py --site`.
+
+## How to add a song
+
+`songs/index.html` is the list. It is English and empty until songs arrive, so it is not under `src/` and it does not use the Bengali font. The home-page link is the English word Songs.
+
+When a song is added:
+
+1. Create `songs/<ascii-slug>.html`. Copy the head from `songs/index.html`. Start with `<p class="nav"><a href="index.html">Songs</a></p>`, then an `h1` for the title, then the words. Repeat the back link after a long song.
+2. Add one `<li>` to the `ul.menu` on the list page. If the list is still the placeholder paragraph, replace that paragraph with `<ul class="menu">` and one `<li>`, in the same shape as `src/poems/index.html`.
+3. If the title or the words contain Bengali, do not leave that Unicode in the served file. Move the list to `src/songs/index.html` and the song to `src/songs/<ascii-slug>.html`, with `class="bn"` and `lang="bn"` on the Bengali parts only. Relative links in those sources must be the served-page links (`../style.css`, `index.html`), the same way `src/poems/` works.
+4. Run `python3 tools/preshape.py --site`. That rebuilds the font and writes `songs/`. Commit the sources, the served pages, and both `fonts/AmoyBengali` files together.
+5. An English-only song stays a normal page under `songs/` and does not need a font rebuild.
+
 ## How to add a top-level section
 
-1. Create a new directory with an `index.html`, for example `songs/index.html`.
+1. Create a new directory with an `index.html`, for example `stories/index.html`.
 2. Use the same head as `figures/index.html`: both charset metas, viewport, `href="../style.css"`.
 3. Start with `<p class="nav"><a href="../index.html">Home</a></p>`, then an `h1` with the section name.
-4. On the home page, add one `<li>` to the `ul.menu` in `index.html`, linking to `songs/index.html` with a relative URL.
+4. On the home page, add one `<li>` to the `ul.menu` in `index.html`, linking to `stories/index.html` with a relative URL. If that label is Bengali, it has to be pre-shaped: put the home page under `src/` or keep the label English. The Songs link is the English word Songs.
 5. Reuse `style.css`. Do not start a second stylesheet unless the shared one cannot express the page. Keep new rules on the same blacklist: no flex, grid, variables, animation, or hover-only behavior.
 
 ## Kindle compatibility
 
-A Kindle Touch (4th generation) loads `@font-face` TTF and does not shape Bengali. Unicode text shows pre-base vowels after the consonant, a split o-kar, a visible hasant, and wrong reph and ya-phala. The same Unicode shapes correctly on a current phone. `debug/` is the comparison that showed this. Tests 5 and 6, pre-shaped Private Use text, matched the HarfBuzz picture. The live pages use test 5 (one character per cluster).
+A Kindle Touch (4th generation) loads `@font-face` TTF and does not shape Bengali. The live pages use pre-shaped cluster text in `fonts/AmoyBengali`. What was tried, what failed, and how to rebuild the font is in `docs/fonts.md`.
 
 - TTF is what this device accepts. Keep a bare TTF `src` ahead of any `format()` hint. Do not switch to WOFF2 only.
 - The viewport meta helps phones. If the Kindle draws the type tiny or huge, try removing `<meta name="viewport" content="width=device-width">` before changing font sizes.
-- Poem pages use no JavaScript. The debug index has one ES3 script that prints `navigator.userAgent`. That page still works with JavaScript off. Flexbox, grid, and CSS variables are not used.
-
-## Debug pages
-
-`debug/index.html` is not linked from the home page, the poems, or the figures. It is published with the rest of the site, so the Kindle can open https://nascentsoftware.com/amoy/debug/ directly. The same rules apply there: both charset metas, relative links, no flex, grid, or CSS variables, no CDN, TTF ahead of any `format()` hint, English in `sans-serif`.
-
-Every numbered page shows the same sample: the first stanza of `poems/khai-khai.html`, then the line `কি কে কো কৌ ক্ষ ত্র স্ত ন্দ র্ক ক্য ঙ্গ শ্চ ঁ ং ৎ`. The English title is how a phone photo of the device identifies the test.
-
-Tests 1–4 are Unicode text in Noto, Lohit Bengali, Hind Siliguri, and a static Baloo Da 2. They still need a shaper. On the Kindle they fail the same way the old poem page did. Tests 5 and 6 are pre-shaped Private Use text. Both matched test 7, the HarfBuzz picture. The live site ships test 5 as `fonts/AmoyBengali`, subset to the clusters the pages use. The debug copies of the fonts are the full unsubsetted files from that test, so they stay large on purpose.
-
-Licenses for the extra fonts, and the OFL notice for the modified Noto files, are in `debug/fonts/README.txt`. Do not point the poem pages at these fonts. Rebuild with `python3 tools/build_debug.py` after changing the sample or the script. Dependencies are listed in `tools/requirements.txt`. The pages themselves stay static.
+- Pages use no JavaScript. Flexbox, grid, and CSS variables are not used.
 
 ## Pictures of poems
 
-Not the plan. The Kindle test showed that pre-shaped cluster text matches a HarfBuzz picture, so the poems stay text. A PNG would cost more and would not be selectable. Debug test 7 is that picture, kept only as the reference from the test.
+Not the plan. The Kindle test showed that pre-shaped cluster text matches a HarfBuzz picture, so the poems stay text. A PNG would cost more and would not be selectable. Figure pages are pictures on purpose: they are shapes, not text.

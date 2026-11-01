@@ -20,15 +20,15 @@ that drops zero-advance glyphs still draws the mark.
 
 Examples:
 
-  python3 tools/preshape.py debug/sample.txt \\
+  python3 tools/preshape.py src/poems/khai-khai.html \\
       --font fonts/NotoSansBengali-Regular.ttf \\
       --mode cluster \\
-      --out-font debug/fonts/AmoyPreshapeCluster.ttf \\
+      --out-font /tmp/AmoyPreshapeCluster.ttf \\
       --out-html /tmp/sample-cluster.html \\
-      --font-url fonts/AmoyPreshapeCluster.ttf \\
+      --font-url AmoyPreshapeCluster.ttf \\
       --check
 
-  python3 tools/preshape.py poems/khai-khai.html \\
+  python3 tools/preshape.py src/poems/khai-khai.html \\
       --font fonts/NotoSansBengali-Regular.ttf \\
       --mode cluster \\
       --out-font /tmp/khai-khai-preshape.ttf \\
