@@ -655,6 +655,55 @@ def rewrite_html(html, convert_line, family=None, font_url=None, inject_style=Tr
     return text
 
 
+def _section_slugs(index_html):
+    """Slugs in the order of the section list. Skips the Home link."""
+    slugs = []
+    for href in re.findall(r'href="([^"]+)"', index_html):
+        if href.endswith(".html") and "/" not in href:
+            slugs.append(href[:-5])
+    return slugs
+
+
+def _section_bar(label, prev_slug, next_slug):
+    """Same Previous / Next words and pager table as the figure pages.
+    The first item has no Previous and the last has no Next. The list
+    link stays in the middle cell."""
+    def cell(slug, word):
+        if not slug:
+            return "<td></td>"
+        return '<td><a lang="en" href="%s.html">%s</a></td>' % (slug, word)
+    return (
+        '<table class="pager section-pager">\n<tr>\n%s\n'
+        '<td><a lang="en" href="index.html">%s</a></td>\n%s\n'
+        "</tr>\n</table>"
+    ) % (cell(prev_slug, "Previous"), label, cell(next_slug, "Next"))
+
+
+_SECTION_NAV = re.compile(
+    r'<p class="nav"><a lang="en" href="index.html">(Poems|Songs)</a></p>'
+)
+
+
+def _add_section_pagers(html, rel, orders):
+    """Replace the back-link bars on a poem or song page. Index pages
+    and figure pages are left alone."""
+    if rel.parts[0] not in ("poems", "songs") or rel.name == "index.html":
+        return html
+    slugs = orders[rel.parts[0]]
+    slug = rel.stem
+    if slug not in slugs:
+        raise SystemExit("%s is not in src/%s/index.html" % (rel.as_posix(), rel.parts[0]))
+    index = slugs.index(slug)
+    label = "Poems" if rel.parts[0] == "poems" else "Songs"
+    prev_slug = slugs[index - 1] if index else None
+    next_slug = slugs[index + 1] if index + 1 < len(slugs) else None
+    bar = _section_bar(label, prev_slug, next_slug)
+    converted, count = _SECTION_NAV.subn(bar, html)
+    if count != 2:
+        raise SystemExit("%s should have two list links, found %s" % (rel.as_posix(), count))
+    return converted
+
+
 def build_site(root=None):
     """Build fonts/AmoyBengali from every HTML file under src/ and write the served pages."""
     root = Path(root) if root else Path(__file__).resolve().parents[1]
@@ -665,6 +714,11 @@ def build_site(root=None):
     noto = root / "fonts" / "NotoSansBengali-Regular.ttf"
     if not noto.is_file():
         raise SystemExit("missing shaping source %s" % noto)
+
+    orders = {}
+    for section in ("poems", "songs"):
+        index_path = src_root / section / "index.html"
+        orders[section] = _section_slugs(index_path.read_text(encoding="utf-8"))
 
     shaper = Preshaper(str(noto), "cluster")
     unicode_lines = []
@@ -692,6 +746,7 @@ def build_site(root=None):
             converted = converted.replace(marker, marker + banner, 1)
         else:
             converted = banner + converted
+        converted = _add_section_pagers(converted, rel, orders)
         pages.append((root / rel, converted))
 
     if shaper.warnings:
